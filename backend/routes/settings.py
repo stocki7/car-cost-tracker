@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 from database import get_db
@@ -18,26 +18,8 @@ class VehicleBody(BaseModel):
     description: Optional[str] = None
 
 
-class FamilyOut(BaseModel):
-    id: int
-    name: str
-    class Config:
-        from_attributes = True
-
-
-class CostTypeOut(BaseModel):
-    id: int
-    name: str
-    class Config:
-        from_attributes = True
-
-
-class VehicleOut(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    class Config:
-        from_attributes = True
+class SettingUpdate(BaseModel):
+    value: str
 
 
 class DriverBody(BaseModel):
@@ -45,17 +27,38 @@ class DriverBody(BaseModel):
     family_id: Optional[int] = None
 
 
+class FamilyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class CostTypeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class VehicleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: Optional[str]
+
+
 class DriverOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
     family_id: Optional[int]
     family_name: Optional[str]
-    class Config:
-        from_attributes = True
 
 
-class SettingUpdate(BaseModel):
-    value: str
+def _get_or_404(db: Session, model, id: int, label: str):
+    obj = db.query(model).filter(model.id == id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"{label} nicht gefunden")
+    return obj
 
 
 # ── Vehicles ──────────────────────────────────────────────────────────────────
@@ -76,9 +79,7 @@ def create_vehicle(body: VehicleBody, db: Session = Depends(get_db)):
 
 @router.put("/vehicles/{vehicle_id}", response_model=VehicleOut)
 def update_vehicle(vehicle_id: int, body: VehicleBody, db: Session = Depends(get_db)):
-    v = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    if not v:
-        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    v = _get_or_404(db, Vehicle, vehicle_id, "Fahrzeug")
     v.name = body.name.strip()
     v.description = body.description
     db.commit()
@@ -88,9 +89,7 @@ def update_vehicle(vehicle_id: int, body: VehicleBody, db: Session = Depends(get
 
 @router.delete("/vehicles/{vehicle_id}")
 def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db)):
-    v = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
-    if not v:
-        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    v = _get_or_404(db, Vehicle, vehicle_id, "Fahrzeug")
     trip_count = db.query(Trip).filter(Trip.vehicle_id == vehicle_id).count()
     cost_count = db.query(Cost).filter(Cost.vehicle_id == vehicle_id).count()
     if trip_count + cost_count > 0:
@@ -121,9 +120,7 @@ def create_family(body: NameBody, db: Session = Depends(get_db)):
 
 @router.put("/families/{family_id}", response_model=FamilyOut)
 def update_family(family_id: int, body: NameBody, db: Session = Depends(get_db)):
-    f = db.query(Family).filter(Family.id == family_id).first()
-    if not f:
-        raise HTTPException(status_code=404, detail="Familie nicht gefunden")
+    f = _get_or_404(db, Family, family_id, "Familie")
     f.name = body.name.strip()
     db.commit()
     db.refresh(f)
@@ -132,9 +129,7 @@ def update_family(family_id: int, body: NameBody, db: Session = Depends(get_db))
 
 @router.delete("/families/{family_id}")
 def delete_family(family_id: int, db: Session = Depends(get_db)):
-    f = db.query(Family).filter(Family.id == family_id).first()
-    if not f:
-        raise HTTPException(status_code=404, detail="Familie nicht gefunden")
+    f = _get_or_404(db, Family, family_id, "Familie")
     trip_count = db.query(Trip).filter(Trip.family_id == family_id).count()
     if trip_count > 0:
         raise HTTPException(
@@ -148,14 +143,14 @@ def delete_family(family_id: int, db: Session = Depends(get_db)):
 
 # ── Drivers ───────────────────────────────────────────────────────────────────
 
+def _driver_out(d: Driver) -> DriverOut:
+    return DriverOut(id=d.id, name=d.name, family_id=d.family_id,
+                     family_name=d.family.name if d.family else None)
+
+
 @router.get("/drivers", response_model=list[DriverOut])
 def list_drivers(db: Session = Depends(get_db)):
-    drivers = db.query(Driver).order_by(Driver.name).all()
-    return [DriverOut(
-        id=d.id, name=d.name,
-        family_id=d.family_id,
-        family_name=d.family.name if d.family else None,
-    ) for d in drivers]
+    return [_driver_out(d) for d in db.query(Driver).order_by(Driver.name).all()]
 
 
 @router.post("/drivers", response_model=DriverOut)
@@ -164,28 +159,22 @@ def create_driver(body: DriverBody, db: Session = Depends(get_db)):
     db.add(d)
     db.commit()
     db.refresh(d)
-    return DriverOut(id=d.id, name=d.name, family_id=d.family_id,
-                     family_name=d.family.name if d.family else None)
+    return _driver_out(d)
 
 
 @router.put("/drivers/{driver_id}", response_model=DriverOut)
 def update_driver(driver_id: int, body: DriverBody, db: Session = Depends(get_db)):
-    d = db.query(Driver).filter(Driver.id == driver_id).first()
-    if not d:
-        raise HTTPException(status_code=404, detail="Fahrer nicht gefunden")
+    d = _get_or_404(db, Driver, driver_id, "Fahrer")
     d.name = body.name.strip()
     d.family_id = body.family_id
     db.commit()
     db.refresh(d)
-    return DriverOut(id=d.id, name=d.name, family_id=d.family_id,
-                     family_name=d.family.name if d.family else None)
+    return _driver_out(d)
 
 
 @router.delete("/drivers/{driver_id}")
 def delete_driver(driver_id: int, db: Session = Depends(get_db)):
-    d = db.query(Driver).filter(Driver.id == driver_id).first()
-    if not d:
-        raise HTTPException(status_code=404, detail="Fahrer nicht gefunden")
+    d = _get_or_404(db, Driver, driver_id, "Fahrer")
     db.delete(d)
     db.commit()
     return {"ok": True}
@@ -212,9 +201,7 @@ def create_cost_type(body: NameBody, db: Session = Depends(get_db)):
 
 @router.put("/cost-types/{ct_id}", response_model=CostTypeOut)
 def update_cost_type(ct_id: int, body: NameBody, db: Session = Depends(get_db)):
-    ct = db.query(CostType).filter(CostType.id == ct_id).first()
-    if not ct:
-        raise HTTPException(status_code=404, detail="Kostenart nicht gefunden")
+    ct = _get_or_404(db, CostType, ct_id, "Kostenart")
     ct.name = body.name.strip()
     db.commit()
     db.refresh(ct)
@@ -223,9 +210,7 @@ def update_cost_type(ct_id: int, body: NameBody, db: Session = Depends(get_db)):
 
 @router.delete("/cost-types/{ct_id}")
 def delete_cost_type(ct_id: int, db: Session = Depends(get_db)):
-    ct = db.query(CostType).filter(CostType.id == ct_id).first()
-    if not ct:
-        raise HTTPException(status_code=404, detail="Kostenart nicht gefunden")
+    ct = _get_or_404(db, CostType, ct_id, "Kostenart")
     in_use = db.query(Cost).filter(Cost.cost_type == ct.name).count()
     if in_use > 0:
         raise HTTPException(
@@ -241,7 +226,7 @@ def delete_cost_type(ct_id: int, db: Session = Depends(get_db)):
 
 @router.get("/locations")
 def list_locations(db: Session = Depends(get_db)):
-    return [l.name for l in db.query(Location).order_by(Location.name).all()]
+    return [loc.name for loc in db.query(Location).order_by(Location.name).all()]
 
 
 @router.post("/locations")
@@ -249,8 +234,7 @@ def create_location(body: NameBody, db: Session = Depends(get_db)):
     name = body.name.strip()
     if db.query(Location).filter(Location.name == name).first():
         raise HTTPException(status_code=400, detail="Ort existiert bereits")
-    loc = Location(name=name)
-    db.add(loc)
+    db.add(Location(name=name))
     db.commit()
     return {"ok": True}
 
@@ -279,7 +263,6 @@ def set_ors_key(body: SettingUpdate, db: Session = Depends(get_db)):
     if s:
         s.value = body.value
     else:
-        s = Setting(key="ors_api_key", value=body.value)
-        db.add(s)
+        db.add(Setting(key="ors_api_key", value=body.value))
     db.commit()
     return {"ok": True}

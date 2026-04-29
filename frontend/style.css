@@ -139,8 +139,8 @@ button:not(.btn-primary):not(.nav-btn):hover { background: #e2e8f0; }
 .settings-item { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
 .settings-item input { flex: 1; min-width: 120px; }
 .settings-item input.desc { max-width: 180px; }
-.driver-item .drv-name { flex: 2; min-width: 140px; }
-.driver-item .drv-fam { flex: 1; min-width: 130px; }
+.driver-item .drv-name { flex: 2; min-width: 140px; width: auto; }
+.driver-item .drv-fam { flex: 1; min-width: 130px; width: auto; }
 .add-row { display: flex; gap: .5rem; margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
 .add-row input { flex: 1; min-width: 140px; }
 .hint { font-size: .85rem; color: var(--muted); margin-bottom: .75rem; }

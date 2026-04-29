@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import date
 from typing import Optional
 import httpx
@@ -25,6 +25,8 @@ class TripCreate(BaseModel):
 
 
 class TripOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     date: date
     vehicle_id: Optional[int]
@@ -37,9 +39,6 @@ class TripOut(BaseModel):
     km: float
     round_trip: bool
     notes: Optional[str]
-
-    class Config:
-        from_attributes = True
 
 
 def trip_to_out(t: Trip) -> TripOut:
@@ -62,8 +61,8 @@ def trip_to_out(t: Trip) -> TripOut:
 async def get_distance_km(start: str, end: str, api_key: str) -> Optional[float]:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            geocode_url = "https://api.openrouteservice.org/geocode/search"
             headers = {"Authorization": api_key}
+            geocode_url = "https://api.openrouteservice.org/geocode/search"
             r1 = await client.get(geocode_url, headers=headers, params={"text": start, "size": 1})
             r2 = await client.get(geocode_url, headers=headers, params={"text": end, "size": 1})
             if r1.status_code != 200 or r2.status_code != 200:
@@ -71,8 +70,11 @@ async def get_distance_km(start: str, end: str, api_key: str) -> Optional[float]
             coords1 = r1.json()["features"][0]["geometry"]["coordinates"]
             coords2 = r2.json()["features"][0]["geometry"]["coordinates"]
             route_url = "https://api.openrouteservice.org/v2/directions/driving-car"
-            payload = {"coordinates": [coords1, coords2]}
-            r = await client.post(route_url, headers={**headers, "Content-Type": "application/json"}, json=payload)
+            r = await client.post(
+                route_url,
+                headers={**headers, "Content-Type": "application/json"},
+                json={"coordinates": [coords1, coords2]},
+            )
             if r.status_code != 200:
                 return None
             meters = r.json()["routes"][0]["summary"]["distance"]
@@ -83,11 +85,9 @@ async def get_distance_km(start: str, end: str, api_key: str) -> Optional[float]
 
 @router.post("/", response_model=TripOut)
 async def create_trip(trip: TripCreate, db: Session = Depends(get_db)):
-    family = db.query(Family).filter(Family.id == trip.family_id).first()
-    if not family:
+    if not db.query(Family).filter(Family.id == trip.family_id).first():
         raise HTTPException(status_code=404, detail="Familie nicht gefunden")
-    vehicle = db.query(Vehicle).filter(Vehicle.id == trip.vehicle_id).first()
-    if not vehicle:
+    if not db.query(Vehicle).filter(Vehicle.id == trip.vehicle_id).first():
         raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
 
     km = trip.km

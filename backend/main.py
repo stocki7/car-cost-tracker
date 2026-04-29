@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,12 +7,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 
 from database import engine, Base, SessionLocal
-from models import Family, CostType, Vehicle, Driver, Location, Setting
+from models import Family, CostType, Vehicle
 from routes import trips, costs, reports, settings, settlements
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Auto-Kostenteilung")
 
 class NoCacheStaticMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -19,23 +20,8 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-store"
         return response
 
-app.add_middleware(NoCacheStaticMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(trips.router, prefix="/api")
-app.include_router(costs.router, prefix="/api")
-app.include_router(reports.router, prefix="/api")
-app.include_router(settings.router, prefix="/api")
-app.include_router(settlements.router, prefix="/api")
-
 
 def run_migrations():
-    """Add new columns to existing tables without dropping data."""
     migrations = [
         "ALTER TABLE trips ADD COLUMN vehicle_id INTEGER",
         "ALTER TABLE trips ADD COLUMN round_trip INTEGER DEFAULT 0",
@@ -48,9 +34,8 @@ def run_migrations():
                 conn.execute(text(sql))
                 conn.commit()
             except Exception:
-                pass  # column already exists
+                pass
 
-        # Make settlements.month nullable (SQLite requires table recreation)
         try:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS settlements_new (
@@ -70,9 +55,7 @@ def run_migrations():
             pass
 
 
-@app.on_event("startup")
-def startup():
-    run_migrations()
+def seed_db():
     db = SessionLocal()
     try:
         if db.query(Vehicle).count() == 0:
@@ -91,5 +74,28 @@ def startup():
     finally:
         db.close()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    run_migrations()
+    seed_db()
+    yield
+
+
+app = FastAPI(title="Auto-Kostenteilung", lifespan=lifespan)
+
+app.add_middleware(NoCacheStaticMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(trips.router, prefix="/api")
+app.include_router(costs.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
+app.include_router(settings.router, prefix="/api")
+app.include_router(settlements.router, prefix="/api")
 
 app.mount("/", StaticFiles(directory="/frontend", html=True), name="frontend")

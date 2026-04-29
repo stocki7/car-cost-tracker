@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import date
 from typing import Optional
 
@@ -22,6 +22,8 @@ class CostCreate(BaseModel):
 
 
 class CostOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     date: date
     vehicle_id: Optional[int]
@@ -32,9 +34,6 @@ class CostOut(BaseModel):
     amount: float
     description: Optional[str]
     notes: Optional[str]
-
-    class Config:
-        from_attributes = True
 
 
 def cost_to_out(c: Cost) -> CostOut:

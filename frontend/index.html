@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto-Kostenteilung</title>
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Kosten" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">🚗 <span class="logo-text">Auto-Kostenteilung</span></span>
+      <nav>
+        <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-btn" data-tab="trips">Fahrten</button>
+        <button class="nav-btn" data-tab="costs">Kosten</button>
+        <button class="nav-btn" data-tab="reports">Auswertung</button>
+        <button class="nav-btn" data-tab="settings"><span class="nav-full">Einstellungen</span><span class="nav-short">Einstellg.</span></button>
+      </nav>
+      <div class="vehicle-select-wrap">
+        <label>Fahrzeug <select id="global-vehicle"></select></label>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section id="tab-dashboard" class="tab active">
+      <h2>Übersicht</h2>
+      <div class="filter-row">
+        <label>Jahr <select id="dash-year"></select></label>
+        <label>Monat
+          <select id="dash-month">
+            <option value="">Gesamt</option>
+            <option value="1">Jänner</option><option value="2">Februar</option>
+            <option value="3">März</option><option value="4">April</option>
+            <option value="5">Mai</option><option value="6">Juni</option>
+            <option value="7">Juli</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">Oktober</option>
+            <option value="11">November</option><option value="12">Dezember</option>
+          </select>
+        </label>
+        <button onclick="loadDashboard()">Aktualisieren</button>
+      </div>
+      <div id="dash-cards" class="cards"></div>
+      <div id="dash-settle-bar"></div>
+      <div class="dash-bottom">
+        <div id="dash-split"></div>
+        <div id="dash-settlement"></div>
+      </div>
+      <div id="dash-chart-wrap">
+        <canvas id="dash-chart" width="500" height="260"></canvas>
+      </div>
+    </section>
+
+    <!-- TRIPS -->
+    <section id="tab-trips" class="tab">
+      <h2>Fahrten erfassen</h2>
+      <form id="trip-form" class="form-card">
+        <div class="form-grid">
+          <label>Datum *<input type="date" name="date" required /></label>
+          <label>Fahrzeug *<select name="vehicle_id" required id="trip-vehicle"></select></label>
+          <label>Fahrer/in
+            <select id="trip-driver" onchange="onDriverChange()">
+              <option value="">– kein Fahrer –</option>
+            </select>
+          </label>
+          <label>Familie *<select name="family_id" required id="trip-family"></select></label>
+          <datalist id="locations-list"></datalist>
+          <div class="route-group full-width">
+            <label>Startort<input type="text" name="start_location" placeholder="z.B. Wien" id="trip-start" list="locations-list" /></label>
+            <div class="route-arrow">→</div>
+            <label>Zielort<input type="text" name="end_location" placeholder="z.B. Salzburg" id="trip-end" list="locations-list" /></label>
+            <div class="retour-check">
+              <input type="checkbox" id="trip-retour" onchange="onRetourChange()" />
+              <span>Hin &amp; Retour</span>
+            </div>
+          </div>
+          <label class="km-label">km *
+            <div class="km-row">
+              <input type="number" name="km" min="0.1" step="0.1" placeholder="oder auto. berechnen" id="trip-km" />
+              <button type="button" onclick="calcKm()" title="Strecke berechnen">↔ Berechnen</button>
+            </div>
+          </label>
+          <label class="full-width">Notiz<input type="text" name="notes" placeholder="optional" /></label>
+        </div>
+        <button type="submit" class="btn-primary">Fahrt speichern</button>
+      </form>
+
+      <div class="filter-row">
+        <label>Jahr <select id="trips-year"></select></label>
+        <label>Monat
+          <select id="trips-month">
+            <option value="">Alle</option>
+            <option value="1">Jänner</option><option value="2">Februar</option>
+            <option value="3">März</option><option value="4">April</option>
+            <option value="5">Mai</option><option value="6">Juni</option>
+            <option value="7">Juli</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">Oktober</option>
+            <option value="11">November</option><option value="12">Dezember</option>
+          </select>
+        </label>
+        <button onclick="loadTrips()">Filtern</button>
+      </div>
+      <div id="trips-table"></div>
+    </section>
+
+    <!-- COSTS -->
+    <section id="tab-costs" class="tab">
+      <h2>Kosten erfassen</h2>
+      <form id="cost-form" class="form-card">
+        <div class="form-grid">
+          <label>Datum *<input type="date" name="date" required /></label>
+          <label>Fahrzeug *<select name="vehicle_id" required id="cost-vehicle"></select></label>
+          <label>Bezahlt von *<select name="paid_by_family_id" required id="cost-family"></select></label>
+          <label>Kategorie *<select name="cost_type" required id="cost-type"></select></label>
+          <label>Betrag (€) *<input type="number" name="amount" min="0.01" step="0.01" required /></label>
+          <label>Beschreibung<input type="text" name="description" placeholder="z.B. Shell Tankstelle" /></label>
+          <label class="full-width">Notiz<input type="text" name="notes" placeholder="optional" /></label>
+        </div>
+        <button type="submit" class="btn-primary">Kosten speichern</button>
+      </form>
+
+      <div class="filter-row">
+        <label>Jahr <select id="costs-year"></select></label>
+        <label>Monat
+          <select id="costs-month">
+            <option value="">Alle</option>
+            <option value="1">Jänner</option><option value="2">Februar</option>
+            <option value="3">März</option><option value="4">April</option>
+            <option value="5">Mai</option><option value="6">Juni</option>
+            <option value="7">Juli</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">Oktober</option>
+            <option value="11">November</option><option value="12">Dezember</option>
+          </select>
+        </label>
+        <button onclick="loadCosts()">Filtern</button>
+      </div>
+      <div id="costs-table"></div>
+    </section>
+
+    <!-- REPORTS -->
+    <section id="tab-reports" class="tab">
+      <h2>Jahresauswertung</h2>
+      <div class="filter-row">
+        <label>Jahr <select id="report-year"></select></label>
+        <button onclick="loadReport()">Laden</button>
+      </div>
+      <div id="report-content"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab">
+      <h2>Einstellungen</h2>
+
+      <div class="form-card">
+        <h3>Fahrzeuge</h3>
+        <div id="vehicle-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-vehicle-name" placeholder="Name (z.B. VW Golf)" />
+          <input type="text" id="new-vehicle-desc" placeholder="Beschreibung (optional)" style="max-width:200px" />
+          <button onclick="addVehicle()">+ Hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Familien</h3>
+        <div id="family-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-family-input" placeholder="Neue Familie..." />
+          <button onclick="addFamily()">+ Hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Fahrer</h3>
+        <p class="hint">Fahrern eine Familie zuordnen, damit sie beim Erfassen automatisch ausgewählt wird.</p>
+        <div id="driver-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-driver-name" placeholder="Name des Fahrers..." style="flex:2;min-width:150px;width:auto" />
+          <select id="new-driver-family" style="flex:1;min-width:140px;width:auto">
+            <option value="">– keine Familie –</option>
+          </select>
+          <button onclick="addDriver()">+ Hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Vordefinierte Orte</h3>
+        <p class="hint">Orte erscheinen als Vorschläge beim Erfassen von Fahrten.</p>
+        <div id="location-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-location-input" placeholder="z.B. Wien Hauptbahnhof" />
+          <button onclick="addLocation()">+ Hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Kostenarten</h3>
+        <div id="cost-type-list"></div>
+        <div class="add-row">
+          <input type="text" id="new-cost-type-input" placeholder="Neue Kostenart..." />
+          <button onclick="addCostType()">+ Hinzufügen</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>OpenRouteService API-Key</h3>
+        <p class="hint">Für automatische Km-Berechnung. Kostenlos unter <strong>openrouteservice.org</strong> registrieren.</p>
+        <div id="ors-status"></div>
+        <div class="km-row">
+          <input type="text" id="ors-key-input" placeholder="API-Key eingeben..." style="flex:1" />
+          <button onclick="saveOrsKey()">Speichern</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

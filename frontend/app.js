@@ -499,14 +499,14 @@ async function loadTrips() {
               ? `${t.start_location} ${arrow} ${t.end_location}${t.round_trip ? ' (H&R)' : ''}`
               : (t.start_location || t.end_location || '–');
             return `<tr>
-              <td>${t.date}</td>
+              <td>${fmtDate(t.date)}</td>
               <td><span class="badge vehicle">${t.vehicle_name || '–'}</span></td>
               <td>${familyBadge(fam)}</td>
               <td>${t.driver_name || '–'}</td>
               <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${route}">${route}</td>
               <td>${fmtKm(t.km)}</td>
               <td>${t.notes || '–'}</td>
-              <td>
+              <td style="white-space:nowrap">
                 <button class="edit-btn" onclick="startEditTrip(${t.id})">✎</button>
                 <button class="del-btn" onclick="deleteTrip(${t.id})">✕</button>
               </td>
@@ -607,14 +607,14 @@ async function loadCosts() {
           ${costs.map(c => {
             const fam = families.find(f => f.id === c.paid_by_family_id);
             return `<tr>
-              <td>${c.date}</td>
+              <td>${fmtDate(c.date)}</td>
               <td><span class="badge vehicle">${c.vehicle_name || '–'}</span></td>
               <td>${fam ? familyBadge(fam) : '–'}</td>
               <td><span class="badge">${c.cost_type}</span></td>
               <td>${c.description || '–'}</td>
               <td><strong>${fmt(c.amount)} €</strong></td>
               <td>${c.notes || '–'}</td>
-              <td>
+              <td style="white-space:nowrap">
                 <button class="edit-btn" onclick="startEditCost(${c.id})">✎</button>
                 <button class="del-btn" onclick="deleteCost(${c.id})">✕</button>
               </td>

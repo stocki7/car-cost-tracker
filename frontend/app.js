@@ -80,7 +80,7 @@ function activateTab(name) {
   const tabEl = document.getElementById('tab-' + name);
   if (tabEl) tabEl.classList.add('active');
   location.hash = name;
-  const loaders = { trips: loadTrips, costs: loadCosts, reports: loadReport, settings: loadSettings };
+  const loaders = { trips: loadTrips, costs: loadCosts, settings: loadSettings };
   loaders[name]?.();
 }
 
@@ -91,7 +91,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 document.getElementById('global-vehicle').addEventListener('change', () => {
   syncFormVehicles();
   const activeTab = document.querySelector('.nav-btn.active')?.dataset.tab;
-  const loaders = { trips: loadTrips, costs: loadCosts, reports: loadReport };
+  const loaders = { trips: loadTrips, costs: loadCosts };
   (loaders[activeTab] || loadDashboard)();
 });
 
@@ -101,10 +101,13 @@ async function init() {
   yearOptions('dash-year');
   yearOptions('trips-year', true);
   yearOptions('costs-year', true);
-  yearOptions('report-year');
 
   document.getElementById('dash-year').addEventListener('change', loadDashboard);
-  document.getElementById('report-year').addEventListener('change', loadReport);
+  document.getElementById('dash-month').addEventListener('change', loadDashboard);
+  document.getElementById('trips-year').addEventListener('change', loadTrips);
+  document.getElementById('trips-month').addEventListener('change', loadTrips);
+  document.getElementById('costs-year').addEventListener('change', loadCosts);
+  document.getElementById('costs-month').addEventListener('change', loadCosts);
 
   [vehicles, families, drivers] = await Promise.all([
     api('/settings/vehicles'),
@@ -123,7 +126,7 @@ async function init() {
   document.querySelectorAll('input[type=date]').forEach(el => el.value = today);
 
   const hash = location.hash.replace('#', '');
-  const validTabs = ['dashboard', 'trips', 'costs', 'reports', 'settings'];
+  const validTabs = ['dashboard', 'trips', 'costs', 'settings'];
   if (hash && validTabs.includes(hash)) activateTab(hash);
   else loadDashboard();
 }
@@ -265,6 +268,72 @@ async function loadDashboard() {
        </div>`;
 
   drawChart(data);
+
+  const monthlyEl = document.getElementById('dash-monthly');
+  if (!month && year) {
+    const months = await api('/reports/monthly?' + buildParams(vid, year, null));
+    const active = months.filter(m => m.total_km > 0 || m.total_cost > 0);
+    if (active.length === 0) { monthlyEl.innerHTML = ''; return; }
+
+    const yearlySettled = settledList.find(s => s.year === Number(year) && s.month === null);
+    let html = '<h3 style="margin:1.5rem 0 .75rem">Monatsübersicht</h3>';
+
+    [...active].reverse().forEach(m => {
+      const ownSettlement = settledList.find(s => s.year === Number(year) && s.month === m.month);
+      const viaYear = !ownSettlement && !!yearlySettled;
+      const settled = ownSettlement || yearlySettled;
+
+      const settlementHtml = m.settlement.length === 0
+        ? '<span style="color:var(--green)">✓ Ausgeglichen</span>'
+        : m.settlement.map(t =>
+            `<strong style="color:var(--danger)">${t.from_family}</strong>
+             <span class="arrow">→</span>
+             <strong style="color:var(--green)">${t.to_family}</strong>:
+             <strong>${fmt(t.amount)} €</strong>`
+          ).join(' &nbsp;|&nbsp; ');
+
+      const settledBadge = settled
+        ? `<span class="settled-badge">✓ Abgerechnet am ${settled.settled_at}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>`
+        : '';
+
+      const settleBtn = ownSettlement
+        ? `<button class="unsettle-btn" onclick="unsettle(${ownSettlement.id})">Abrechnung öffnen</button>`
+        : viaYear
+          ? `<button class="unsettle-btn" onclick="unsettle(${yearlySettled.id})">Jahresabrechnung öffnen</button>`
+          : `<button class="settle-btn" onclick="settleMonth(${m.month}, '${year}')">Als abgerechnet markieren</button>`;
+
+      html += `
+        <div class="report-month${settled ? ' is-settled' : ''}">
+          <div class="report-month-header">
+            <span>${MONTHS[m.month]} ${year} ${settledBadge}</span>
+            <div style="display:flex;align-items:center;gap:.75rem">
+              <span style="color:var(--muted);font-weight:400;font-size:.9rem">${fmt(m.total_cost)} € | ${fmtKm(m.total_km)}</span>
+              ${settleBtn}
+            </div>
+          </div>
+          <div class="report-month-body">
+            <div class="report-families">
+              ${m.split.map(s => {
+                const balSign = s.balance > 0.005 ? '+' : '';
+                return `<div class="report-family">
+                  <div class="name">${s.family_name}</div>
+                  <div class="details">${fmtKm(s.km)} (${s.ratio} %) | bezahlt: ${fmt(s.paid)} €</div>
+                  <div class="share">${fmt(s.should_pay)} €</div>
+                  <div class="balance-line" style="color:${s.balance > 0.005 ? 'var(--green)' : s.balance < -0.005 ? 'var(--danger)' : 'var(--muted)'}">
+                    Bilanz: ${balSign}${fmt(s.balance)} €
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+            <div class="report-settlement">Abrechnung: ${settlementHtml}</div>
+          </div>
+        </div>`;
+    });
+
+    monthlyEl.innerHTML = html;
+  } else {
+    monthlyEl.innerHTML = '';
+  }
 }
 
 function drawChart(data) {
@@ -476,103 +545,6 @@ async function deleteCost(id) {
   loadDashboard();
 }
 
-// ── Reports ──────────────────────────────────────────────────────────────────
-
-async function loadReport() {
-  const vid = currentVehicleId();
-  const year = document.getElementById('report-year').value;
-  const params = new URLSearchParams({ year });
-  if (vid) params.set('vehicle_id', vid);
-
-  const [months, settledList] = await Promise.all([
-    api('/reports/monthly?' + params),
-    api('/settlements/?' + (vid ? 'vehicle_id=' + vid : '')),
-  ]);
-
-  const el = document.getElementById('report-content');
-  const active = months.filter(m => m.total_km > 0 || m.total_cost > 0);
-  if (active.length === 0) { el.innerHTML = '<p class="empty">Keine Daten für dieses Jahr.</p>'; return; }
-
-  const yearTotal = months.reduce((s, m) => s + m.total_cost, 0);
-  const yearKm = months.reduce((s, m) => s + m.total_km, 0);
-  const settledThisYear = settledList.filter(s => s.year === Number(year));
-  const yearSettled = settledList.find(s => s.year === Number(year) && s.month === null);
-
-  const yearSettleBar = yearSettled
-    ? `<div class="dash-settled-bar" style="margin-bottom:1.5rem">
-        <span style="flex:1;font-weight:600;color:#15803d">Jahr ${year}
-          <span class="settled-badge">✓ Abgerechnet am ${yearSettled.settled_at}${yearSettled.notes ? ' – ' + yearSettled.notes : ''}</span>
-        </span>
-        <button class="unsettle-btn" onclick="unsettle(${yearSettled.id})">Wieder öffnen</button>
-       </div>`
-    : `<div class="dash-open-bar" style="margin-bottom:1.5rem">
-        <span class="open-label">Jahr ${year} – noch nicht abgerechnet</span>
-        <button class="settle-btn" onclick="settleYear('${year}')">Gesamtes Jahr abrechnen</button>
-       </div>`;
-
-  let html = `
-    <div class="cards" style="margin-bottom:1rem">
-      <div class="card"><div class="label">Jahreskosten ${year}</div><div class="value">${fmt(yearTotal)} €</div></div>
-      <div class="card"><div class="label">Jahreskilometer</div><div class="value">${fmtKm(yearKm)}</div></div>
-      <div class="card"><div class="label">Monate abgerechnet</div><div class="value">${settledThisYear.length} / ${active.length}</div></div>
-    </div>
-    ${yearSettleBar}`;
-
-  [...active].reverse().forEach(m => {
-    const ownSettlement = settledThisYear.find(s => s.month === m.month);
-    const viaYear = !ownSettlement && !!yearSettled;
-    const settled = ownSettlement || yearSettled;
-
-    const settlementHtml = m.settlement.length === 0
-      ? '<span style="color:var(--green)">✓ Ausgeglichen</span>'
-      : m.settlement.map(t =>
-          `<strong style="color:var(--danger)">${t.from_family}</strong>
-           <span class="arrow">→</span>
-           <strong style="color:var(--green)">${t.to_family}</strong>:
-           <strong>${fmt(t.amount)} €</strong>`
-        ).join(' &nbsp;|&nbsp; ');
-
-    const settledBadge = settled
-      ? `<span class="settled-badge">✓ Abgerechnet am ${settled.settled_at}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>`
-      : '';
-
-    const settleBtn = ownSettlement
-      ? `<button class="unsettle-btn" onclick="unsettle(${ownSettlement.id})">Abrechnung öffnen</button>`
-      : viaYear
-        ? `<button class="unsettle-btn" onclick="unsettle(${yearSettled.id})">Jahresabrechnung öffnen</button>`
-        : `<button class="settle-btn" onclick="settleMonth(${m.month}, '${year}')">Als abgerechnet markieren</button>`;
-
-    html += `
-      <div class="report-month${settled ? ' is-settled' : ''}">
-        <div class="report-month-header">
-          <span>${MONTHS[m.month]} ${year} ${settledBadge}</span>
-          <div style="display:flex;align-items:center;gap:.75rem">
-            <span style="color:var(--muted);font-weight:400;font-size:.9rem">${fmt(m.total_cost)} € | ${fmtKm(m.total_km)}</span>
-            ${settleBtn}
-          </div>
-        </div>
-        <div class="report-month-body">
-          <div class="report-families">
-            ${m.split.map(s => {
-              const balSign = s.balance > 0.005 ? '+' : '';
-              return `<div class="report-family">
-                <div class="name">${s.family_name}</div>
-                <div class="details">${fmtKm(s.km)} (${s.ratio} %) | bezahlt: ${fmt(s.paid)} €</div>
-                <div class="share">${fmt(s.should_pay)} €</div>
-                <div class="balance-line" style="color:${s.balance > 0.005 ? 'var(--green)' : s.balance < -0.005 ? 'var(--danger)' : 'var(--muted)'}">
-                  Bilanz: ${balSign}${fmt(s.balance)} €
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-          <div class="report-settlement">Abrechnung: ${settlementHtml}</div>
-        </div>
-      </div>`;
-  });
-
-  el.innerHTML = html;
-}
-
 // ── Settlements ───────────────────────────────────────────────────────────────
 
 async function postSettlement(year, month, label, reloadFn) {
@@ -598,11 +570,11 @@ async function deleteSettlement(id, reloadFn) {
 }
 
 function settleYear(year) {
-  return postSettlement(year, null, `Jahr ${year}`, loadReport);
+  return postSettlement(year, null, `Jahr ${year}`, loadDashboard);
 }
 
 function settleMonth(month, year) {
-  return postSettlement(year, month, `${MONTHS[month]} ${year}`, loadReport);
+  return postSettlement(year, month, `${MONTHS[month]} ${year}`, loadDashboard);
 }
 
 function settleDash(month, year) {
@@ -611,7 +583,7 @@ function settleDash(month, year) {
   return postSettlement(year, monthVal, label, loadDashboard);
 }
 
-function unsettle(id) { return deleteSettlement(id, loadReport); }
+function unsettle(id) { return deleteSettlement(id, loadDashboard); }
 function unsettleDash(id) { return deleteSettlement(id, loadDashboard); }
 
 // ── Settings ─────────────────────────────────────────────────────────────────

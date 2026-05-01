@@ -22,7 +22,6 @@
         <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
         <button class="nav-btn" data-tab="trips">Fahrten</button>
         <button class="nav-btn" data-tab="costs">Kosten</button>
-        <button class="nav-btn" data-tab="reports">Auswertung</button>
         <button class="nav-btn" data-tab="settings">Einstellungen</button>
       </nav>
       <div class="vehicle-select-wrap">
@@ -59,6 +58,7 @@
       <div id="dash-chart-wrap">
         <canvas id="dash-chart" width="500" height="260"></canvas>
       </div>
+      <div id="dash-monthly"></div>
     </section>
 
     <!-- TRIPS -->
@@ -145,16 +145,6 @@
         <button onclick="loadCosts()">Filtern</button>
       </div>
       <div id="costs-table"></div>
-    </section>
-
-    <!-- REPORTS -->
-    <section id="tab-reports" class="tab">
-      <h2>Jahresauswertung</h2>
-      <div class="filter-row">
-        <label>Jahr <select id="report-year"></select></label>
-        <button onclick="loadReport()">Laden</button>
-      </div>
-      <div id="report-content"></div>
     </section>
 
     <!-- SETTINGS -->

@@ -72,15 +72,20 @@ function currentVehicleId() {
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    const loaders = { trips: loadTrips, costs: loadCosts, reports: loadReport, settings: loadSettings };
-    loaders[btn.dataset.tab]?.();
+function activateTab(name) {
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
   });
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tabEl = document.getElementById('tab-' + name);
+  if (tabEl) tabEl.classList.add('active');
+  location.hash = name;
+  const loaders = { trips: loadTrips, costs: loadCosts, reports: loadReport, settings: loadSettings };
+  loaders[name]?.();
+}
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
 });
 
 document.getElementById('global-vehicle').addEventListener('change', () => {
@@ -98,6 +103,9 @@ async function init() {
   yearOptions('costs-year', true);
   yearOptions('report-year');
 
+  document.getElementById('dash-year').addEventListener('change', loadDashboard);
+  document.getElementById('report-year').addEventListener('change', loadReport);
+
   [vehicles, families, drivers] = await Promise.all([
     api('/settings/vehicles'),
     api('/settings/families'),
@@ -114,7 +122,10 @@ async function init() {
   const today = new Date().toISOString().split('T')[0];
   document.querySelectorAll('input[type=date]').forEach(el => el.value = today);
 
-  loadDashboard();
+  const hash = location.hash.replace('#', '');
+  const validTabs = ['dashboard', 'trips', 'costs', 'reports', 'settings'];
+  if (hash && validTabs.includes(hash)) activateTab(hash);
+  else loadDashboard();
 }
 
 function fillVehicleSelects() {
@@ -191,8 +202,9 @@ async function loadDashboard() {
 
     dashSettleEl.innerHTML = settled
       ? `<div class="dash-settled-bar">
-          <span class="settled-label">✓ ${label} ist abgerechnet${viaYear ? ' (Jahresabrechnung)' : ''}</span>
-          <span class="settled-date">${settled.settled_at}${settled.notes ? ' – ' + settled.notes : ''}</span>
+          <span style="flex:1;font-weight:600;color:#15803d">${label}
+            <span class="settled-badge">✓ Abgerechnet am ${settled.settled_at}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>
+          </span>
           <button class="unsettle-btn" onclick="unsettleDash(${settled.id})">${viaYear ? 'Jahresabrechnung öffnen' : 'Wieder öffnen'}</button>
          </div>`
       : `<div class="dash-open-bar">
@@ -488,8 +500,9 @@ async function loadReport() {
 
   const yearSettleBar = yearSettled
     ? `<div class="dash-settled-bar" style="margin-bottom:1.5rem">
-        <span class="settled-label">✓ Jahr ${year} ist abgerechnet</span>
-        <span class="settled-date">${yearSettled.settled_at}${yearSettled.notes ? ' – ' + yearSettled.notes : ''}</span>
+        <span style="flex:1;font-weight:600;color:#15803d">Jahr ${year}
+          <span class="settled-badge">✓ Abgerechnet am ${yearSettled.settled_at}${yearSettled.notes ? ' – ' + yearSettled.notes : ''}</span>
+        </span>
         <button class="unsettle-btn" onclick="unsettle(${yearSettled.id})">Wieder öffnen</button>
        </div>`
     : `<div class="dash-open-bar" style="margin-bottom:1.5rem">

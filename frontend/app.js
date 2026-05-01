@@ -35,6 +35,12 @@ function fmt(n) {
   return Number(n).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function fmtDate(str) {
+  if (!str) return '';
+  const [y, m, d] = str.split('-');
+  return `${d}.${m}.${y}`;
+}
+
 function fmtKm(n) {
   return Number(n).toLocaleString('de-AT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' km';
 }
@@ -206,7 +212,7 @@ async function loadDashboard() {
     dashSettleEl.innerHTML = settled
       ? `<div class="dash-settled-bar">
           <span style="flex:1;font-weight:600;color:#15803d">${label}
-            <span class="settled-badge">✓ Abgerechnet am ${settled.settled_at}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>
+            <span class="settled-badge">✓ Abgerechnet am ${fmtDate(settled.settled_at)}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>
           </span>
           <button class="unsettle-btn" onclick="unsettleDash(${settled.id})">${viaYear ? 'Jahresabrechnung öffnen' : 'Wieder öffnen'}</button>
          </div>`
@@ -293,11 +299,11 @@ async function loadDashboard() {
           ).join(' &nbsp;|&nbsp; ');
 
       const settledBadge = settled
-        ? `<span class="settled-badge">✓ Abgerechnet am ${settled.settled_at}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>`
+        ? `<span class="settled-badge">✓ Abgerechnet am ${fmtDate(settled.settled_at)}${viaYear ? ' (Jahresabrechnung)' : ''}${settled.notes ? ' – ' + settled.notes : ''}</span>`
         : '';
 
       const settleBtn = ownSettlement
-        ? `<button class="unsettle-btn" onclick="unsettle(${ownSettlement.id})">Abrechnung öffnen</button>`
+        ? `<button class="unsettle-btn" onclick="unsettle(${ownSettlement.id})">Wieder öffnen</button>`
         : viaYear
           ? `<button class="unsettle-btn" onclick="unsettle(${yearlySettled.id})">Jahresabrechnung öffnen</button>`
           : `<button class="settle-btn" onclick="settleMonth(${m.month}, '${year}')">Als abgerechnet markieren</button>`;

@@ -28,6 +28,7 @@ nav { display: flex; gap: .25rem; overflow-x: auto; flex: 1; }
 .vehicle-select-wrap { white-space: nowrap; font-size: .85rem; display: flex; align-items: center; }
 .vehicle-select-wrap label { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-weight: 500; font-size: .85rem; color: rgba(255,255,255,.8); }
 .vehicle-select-wrap select { border: 1px solid rgba(255,255,255,.3); border-radius: 6px; padding: .35rem .6rem; font-size: .9rem; background: rgba(255,255,255,.15); font-weight: 600; color: #fff; min-width: 120px; }
+.vehicle-select-wrap select option { color: var(--text); background: var(--surface); }
 
 /* Main */
 main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
@@ -83,8 +84,8 @@ input:focus, select:focus { border-color: var(--primary); }
 button { cursor: pointer; border: none; border-radius: 6px; padding: .5rem 1rem; font-size: .9rem; font-family: inherit; transition: background .15s; }
 .btn-primary { background: var(--primary); color: #fff; padding: .65rem 1.5rem; font-size: .95rem; }
 .btn-primary:hover { background: var(--primary-dark); }
-button:not(.btn-primary):not(.nav-btn) { background: #f1f5f9; }
-button:not(.btn-primary):not(.nav-btn):hover { background: #e2e8f0; }
+button:not(.btn-primary):not(.nav-btn):not(.settle-btn):not(.unsettle-btn):not(.del-btn) { background: #f1f5f9; }
+button:not(.btn-primary):not(.nav-btn):not(.settle-btn):not(.unsettle-btn):not(.del-btn):hover { background: #e2e8f0; }
 
 /* Filter row */
 .filter-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }

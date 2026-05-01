@@ -5,6 +5,10 @@ const MONTHS = ['', 'Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni',
 let families = [];
 let vehicles = [];
 let drivers = [];
+let currentTrips = [];
+let editingTripId = null;
+let currentCosts = [];
+let editingCostId = null;
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -323,7 +327,8 @@ async function loadDashboard() {
                 const balSign = s.balance > 0.005 ? '+' : '';
                 return `<div class="report-family">
                   <div class="name">${s.family_name}</div>
-                  <div class="details">${fmtKm(s.km)} (${s.ratio} %) | bezahlt: ${fmt(s.paid)} €</div>
+                  <div class="details">${fmtKm(s.km)} (${s.ratio} %)</div>
+                  <div class="details">bezahlt: ${fmt(s.paid)} €</div>
                   <div class="share">${fmt(s.should_pay)} €</div>
                   <div class="balance-line" style="color:${s.balance > 0.005 ? 'var(--green)' : s.balance < -0.005 ? 'var(--danger)' : 'var(--muted)'}">
                     Bilanz: ${balSign}${fmt(s.balance)} €
@@ -383,10 +388,10 @@ document.getElementById('trip-form').addEventListener('submit', async e => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const body = {};
-  fd.forEach((v, k) => { if (v) body[k] = v; });
+  fd.forEach((v, k) => { if (v !== '') body[k] = v; });
   body.vehicle_id = Number(body.vehicle_id);
   body.family_id = Number(body.family_id);
-  if (body.km) body.km = Number(body.km); else delete body.km;
+  body.km = Number(body.km || 0);
   body.round_trip = document.getElementById('trip-retour').checked;
 
   const driverSel = document.getElementById('trip-driver');
@@ -395,12 +400,20 @@ document.getElementById('trip-form').addEventListener('submit', async e => {
   else delete body.driver_name;
 
   try {
-    await api('/trips/', { method: 'POST', body: JSON.stringify(body) });
-    toast('Fahrt gespeichert');
+    if (editingTripId) {
+      await api('/trips/' + editingTripId, { method: 'PUT', body: JSON.stringify(body) });
+      toast('Fahrt aktualisiert');
+      editingTripId = null;
+    } else {
+      await api('/trips/', { method: 'POST', body: JSON.stringify(body) });
+      toast('Fahrt gespeichert');
+    }
     e.target.reset();
     document.getElementById('trip-driver').value = '';
     document.getElementById('trip-retour').checked = false;
     document.querySelectorAll('input[type=date]').forEach(el => el.value = new Date().toISOString().split('T')[0]);
+    document.getElementById('trip-submit-btn').textContent = 'Fahrt speichern';
+    document.getElementById('trip-cancel-btn').style.display = 'none';
     syncFormVehicles();
     loadTrips();
     loadDashboard();
@@ -408,6 +421,38 @@ document.getElementById('trip-form').addEventListener('submit', async e => {
     toast(err.message, 'error');
   }
 });
+
+function startEditTrip(id) {
+  const t = currentTrips.find(x => x.id === id);
+  if (!t) return;
+  editingTripId = id;
+  const form = document.getElementById('trip-form');
+  form.date.value = t.date;
+  document.getElementById('trip-vehicle').value = t.vehicle_id;
+  document.getElementById('trip-family').value = t.family_id;
+  form.start_location.value = t.start_location || '';
+  form.end_location.value = t.end_location || '';
+  document.getElementById('trip-km').value = t.km;
+  document.getElementById('trip-retour').checked = t.round_trip;
+  form.notes.value = t.notes || '';
+  const driverSel = document.getElementById('trip-driver');
+  const match = [...driverSel.options].find(o => o.text.replace(/ \(.*\)$/, '') === t.driver_name);
+  driverSel.value = match ? match.value : '';
+  document.getElementById('trip-submit-btn').textContent = 'Fahrt aktualisieren';
+  document.getElementById('trip-cancel-btn').style.display = '';
+  form.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelEditTrip() {
+  editingTripId = null;
+  document.getElementById('trip-form').reset();
+  document.getElementById('trip-driver').value = '';
+  document.getElementById('trip-retour').checked = false;
+  document.querySelectorAll('#trip-form input[type=date]').forEach(el => el.value = new Date().toISOString().split('T')[0]);
+  document.getElementById('trip-submit-btn').textContent = 'Fahrt speichern';
+  document.getElementById('trip-cancel-btn').style.display = 'none';
+  syncFormVehicles();
+}
 
 async function calcKm() {
   const start = document.getElementById('trip-start').value;
@@ -437,6 +482,7 @@ async function loadTrips() {
   const year = document.getElementById('trips-year').value;
   const month = document.getElementById('trips-month').value;
   const trips = await api('/trips/?' + buildParams(vid, year, month));
+  currentTrips = trips;
   const el = document.getElementById('trips-table');
 
   if (trips.length === 0) { el.innerHTML = '<p class="empty">Noch keine Fahrten erfasst.</p>'; return; }
@@ -460,7 +506,10 @@ async function loadTrips() {
               <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${route}">${route}</td>
               <td>${fmtKm(t.km)}</td>
               <td>${t.notes || '–'}</td>
-              <td><button class="del-btn" onclick="deleteTrip(${t.id})">✕</button></td>
+              <td>
+                <button class="edit-btn" onclick="startEditTrip(${t.id})">✎</button>
+                <button class="del-btn" onclick="deleteTrip(${t.id})">✕</button>
+              </td>
             </tr>`;
           }).join('')}
           <tr style="background:#f8fafc">
@@ -487,16 +536,24 @@ document.getElementById('cost-form').addEventListener('submit', async e => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const body = {};
-  fd.forEach((v, k) => { if (v) body[k] = v; });
+  fd.forEach((v, k) => { if (v !== '') body[k] = v; });
   body.vehicle_id = Number(body.vehicle_id);
   body.paid_by_family_id = Number(body.paid_by_family_id);
   body.amount = Number(body.amount);
 
   try {
-    await api('/costs/', { method: 'POST', body: JSON.stringify(body) });
-    toast('Kosten gespeichert');
+    if (editingCostId) {
+      await api('/costs/' + editingCostId, { method: 'PUT', body: JSON.stringify(body) });
+      toast('Kosten aktualisiert');
+      editingCostId = null;
+    } else {
+      await api('/costs/', { method: 'POST', body: JSON.stringify(body) });
+      toast('Kosten gespeichert');
+    }
     e.target.reset();
     document.querySelectorAll('input[type=date]').forEach(el => el.value = new Date().toISOString().split('T')[0]);
+    document.getElementById('cost-submit-btn').textContent = 'Kosten speichern';
+    document.getElementById('cost-cancel-btn').style.display = 'none';
     syncFormVehicles();
     loadCosts();
     loadDashboard();
@@ -505,11 +562,38 @@ document.getElementById('cost-form').addEventListener('submit', async e => {
   }
 });
 
+function startEditCost(id) {
+  const c = currentCosts.find(x => x.id === id);
+  if (!c) return;
+  editingCostId = id;
+  const form = document.getElementById('cost-form');
+  form.date.value = c.date;
+  document.getElementById('cost-vehicle').value = c.vehicle_id;
+  document.getElementById('cost-family').value = c.paid_by_family_id;
+  document.getElementById('cost-type').value = c.cost_type;
+  form.amount.value = c.amount;
+  form.description.value = c.description || '';
+  form.notes.value = c.notes || '';
+  document.getElementById('cost-submit-btn').textContent = 'Kosten aktualisieren';
+  document.getElementById('cost-cancel-btn').style.display = '';
+  form.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelEditCost() {
+  editingCostId = null;
+  document.getElementById('cost-form').reset();
+  document.querySelectorAll('input[type=date]').forEach(el => el.value = new Date().toISOString().split('T')[0]);
+  document.getElementById('cost-submit-btn').textContent = 'Kosten speichern';
+  document.getElementById('cost-cancel-btn').style.display = 'none';
+  syncFormVehicles();
+}
+
 async function loadCosts() {
   const vid = currentVehicleId();
   const year = document.getElementById('costs-year').value;
   const month = document.getElementById('costs-month').value;
   const costs = await api('/costs/?' + buildParams(vid, year, month));
+  currentCosts = costs;
   const el = document.getElementById('costs-table');
 
   if (costs.length === 0) { el.innerHTML = '<p class="empty">Noch keine Kosten erfasst.</p>'; return; }
@@ -530,7 +614,10 @@ async function loadCosts() {
               <td>${c.description || '–'}</td>
               <td><strong>${fmt(c.amount)} €</strong></td>
               <td>${c.notes || '–'}</td>
-              <td><button class="del-btn" onclick="deleteCost(${c.id})">✕</button></td>
+              <td>
+                <button class="edit-btn" onclick="startEditCost(${c.id})">✎</button>
+                <button class="del-btn" onclick="deleteCost(${c.id})">✕</button>
+              </td>
             </tr>`;
           }).join('')}
           <tr style="background:#f8fafc">
@@ -606,16 +693,20 @@ async function loadSettings() {
   vehicles = veh;
   families = fams;
 
-  document.getElementById('vehicle-list').innerHTML = veh.map(v => `
+  document.getElementById('vehicle-list').innerHTML = veh.map((v, i) => `
     <div class="settings-item">
+      <button class="move-btn" ${i === 0 ? 'disabled' : ''} onclick="moveVehicle(${v.id},'up')">▲</button>
+      <button class="move-btn" ${i === veh.length - 1 ? 'disabled' : ''} onclick="moveVehicle(${v.id},'dn')">▼</button>
       <input type="text" id="veh-name-${v.id}" value="${v.name}" placeholder="Name" />
       <input type="text" id="veh-desc-${v.id}" value="${v.description || ''}" placeholder="Beschreibung" class="desc" />
       <button onclick="saveVehicle(${v.id})">Speichern</button>
       <button class="del-btn" onclick="deleteVehicle(${v.id})" title="Fahrzeug löschen">✕</button>
     </div>`).join('');
 
-  document.getElementById('family-list').innerHTML = fams.map(f => `
+  document.getElementById('family-list').innerHTML = fams.map((f, i) => `
     <div class="settings-item">
+      <button class="move-btn" ${i === 0 ? 'disabled' : ''} onclick="moveFamily(${f.id},'up')">▲</button>
+      <button class="move-btn" ${i === fams.length - 1 ? 'disabled' : ''} onclick="moveFamily(${f.id},'dn')">▼</button>
       <input type="text" id="fam-${f.id}" value="${f.name}" />
       <button onclick="saveFamily(${f.id})">Speichern</button>
       <button class="del-btn" onclick="deleteFamily(${f.id})" title="Familie löschen">✕</button>
@@ -626,8 +717,10 @@ async function loadSettings() {
 
   document.getElementById('driver-list').innerHTML = drvs.length === 0
     ? '<p class="hint">Noch keine Fahrer angelegt.</p>'
-    : drvs.map(d => `
+    : drvs.map((d, i) => `
       <div class="settings-item driver-item">
+        <button class="move-btn" ${i === 0 ? 'disabled' : ''} onclick="moveDriver(${d.id},'up')">▲</button>
+        <button class="move-btn" ${i === drvs.length - 1 ? 'disabled' : ''} onclick="moveDriver(${d.id},'dn')">▼</button>
         <input type="text" id="drv-name-${d.id}" value="${d.name}" class="drv-name" />
         <select id="drv-fam-${d.id}" class="drv-fam">
           ${famOptsForDriver.replace(`value="${d.family_id}"`, `value="${d.family_id}" selected`)}
@@ -639,8 +732,10 @@ async function loadSettings() {
   document.getElementById('new-driver-family').innerHTML = famOptsForDriver;
   renderLocationSettings();
 
-  document.getElementById('cost-type-list').innerHTML = costTypes.map(ct => `
+  document.getElementById('cost-type-list').innerHTML = costTypes.map((ct, i) => `
     <div class="settings-item">
+      <button class="move-btn" ${i === 0 ? 'disabled' : ''} onclick="moveCostType(${ct.id},'up')">▲</button>
+      <button class="move-btn" ${i === costTypes.length - 1 ? 'disabled' : ''} onclick="moveCostType(${ct.id},'dn')">▼</button>
       <input type="text" id="ct-${ct.id}" value="${ct.name}" />
       <button onclick="saveCostType(${ct.id})">Speichern</button>
       <button class="del-btn" onclick="deleteCostType(${ct.id})" title="Kostenart löschen">✕</button>
@@ -802,7 +897,7 @@ async function deleteDriver(id) {
 async function loadLocationDatalist() {
   const locs = await api('/settings/locations');
   document.getElementById('locations-list').innerHTML =
-    locs.map(l => `<option value="${l}"></option>`).join('');
+    locs.map(l => `<option value="${l.name}"></option>`).join('');
 }
 
 async function renderLocationSettings() {
@@ -810,10 +905,12 @@ async function renderLocationSettings() {
   const el = document.getElementById('location-list');
   el.innerHTML = locs.length === 0
     ? '<p class="hint">Noch keine Orte angelegt.</p>'
-    : locs.map(l => `
+    : locs.map((l, i) => `
       <div class="settings-item">
-        <span style="flex:1;padding:.4rem .2rem">${l}</span>
-        <button class="del-btn" onclick="deleteLocation('${l.replace(/'/g, "\\'")}')">✕</button>
+        <button class="move-btn" ${i === 0 ? 'disabled' : ''} onclick="moveLocation(${l.id},'up')">▲</button>
+        <button class="move-btn" ${i === locs.length - 1 ? 'disabled' : ''} onclick="moveLocation(${l.id},'dn')">▼</button>
+        <span style="flex:1;padding:.4rem .2rem">${l.name}</span>
+        <button class="del-btn" onclick="deleteLocation('${l.name.replace(/'/g, "\\'")}')">✕</button>
       </div>`).join('');
 }
 
@@ -847,6 +944,37 @@ async function saveOrsKey() {
   document.getElementById('ors-key-input').value = '';
   toast('API-Key gespeichert');
   loadSettings();
+}
+
+async function moveVehicle(id, dir) {
+  await api(`/settings/vehicles/move?vehicle_id=${id}&direction=${dir}`, { method: 'POST' });
+  vehicles = await api('/settings/vehicles');
+  fillVehicleSelects();
+  loadSettings();
+}
+
+async function moveFamily(id, dir) {
+  await api(`/settings/families/move?family_id=${id}&direction=${dir}`, { method: 'POST' });
+  families = await api('/settings/families');
+  fillFamilySelects();
+  loadSettings();
+}
+
+async function moveDriver(id, dir) {
+  await api(`/settings/drivers/move?driver_id=${id}&direction=${dir}`, { method: 'POST' });
+  loadSettings();
+}
+
+async function moveCostType(id, dir) {
+  await api(`/settings/cost-types/move?ct_id=${id}&direction=${dir}`, { method: 'POST' });
+  await reloadCostTypes();
+  loadSettings();
+}
+
+async function moveLocation(id, dir) {
+  await api(`/settings/locations/move?loc_id=${id}&direction=${dir}`, { method: 'POST' });
+  renderLocationSettings();
+  loadLocationDatalist();
 }
 
 init();

@@ -81,6 +81,18 @@ def list_costs(
     return [cost_to_out(c) for c in q.order_by(Cost.date.desc()).all()]
 
 
+@router.put("/{cost_id}", response_model=CostOut)
+def update_cost(cost_id: int, cost: CostCreate, db: Session = Depends(get_db)):
+    db_cost = db.query(Cost).filter(Cost.id == cost_id).first()
+    if not db_cost:
+        raise HTTPException(status_code=404, detail="Kosten nicht gefunden")
+    for field, value in cost.model_dump().items():
+        setattr(db_cost, field, value)
+    db.commit()
+    db.refresh(db_cost)
+    return cost_to_out(db_cost)
+
+
 @router.delete("/{cost_id}")
 def delete_cost(cost_id: int, db: Session = Depends(get_db)):
     cost = db.query(Cost).filter(Cost.id == cost_id).first()
@@ -93,4 +105,4 @@ def delete_cost(cost_id: int, db: Session = Depends(get_db)):
 
 @router.get("/types")
 def get_cost_types(db: Session = Depends(get_db)):
-    return [ct.name for ct in db.query(CostType).order_by(CostType.id).all()]
+    return [ct.name for ct in db.query(CostType).order_by(CostType.sort_order).all()]

@@ -1,4 +1,4 @@
-const CACHE = 'auto-kosten-v3';
+const CACHE = 'auto-kosten-v4';
 const STATIC = ['/', '/index.html', '/style.css', '/app.js', '/icon.svg', '/manifest.json',
   '/icon-180.png', '/icon-192.png', '/icon-512.png'];
 

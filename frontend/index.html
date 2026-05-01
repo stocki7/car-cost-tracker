@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#3b82f6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Kosten" />
+  <meta name="apple-mobile-web-app-title" content="Autokosten" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -92,7 +92,10 @@
           </label>
           <label class="full-width">Notiz<input type="text" name="notes" placeholder="optional" /></label>
         </div>
-        <button type="submit" class="btn-primary">Fahrt speichern</button>
+        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <button type="submit" class="btn-primary" id="trip-submit-btn">Fahrt speichern</button>
+          <button type="button" class="unsettle-btn" id="trip-cancel-btn" style="display:none" onclick="cancelEditTrip()">Abbrechen</button>
+        </div>
       </form>
 
       <div class="filter-row">
@@ -126,7 +129,10 @@
           <label>Beschreibung<input type="text" name="description" placeholder="z.B. Shell Tankstelle" /></label>
           <label class="full-width">Notiz<input type="text" name="notes" placeholder="optional" /></label>
         </div>
-        <button type="submit" class="btn-primary">Kosten speichern</button>
+        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <button type="submit" class="btn-primary" id="cost-submit-btn">Kosten speichern</button>
+          <button type="button" class="unsettle-btn" id="cost-cancel-btn" style="display:none" onclick="cancelEditCost()">Abbrechen</button>
+        </div>
       </form>
 
       <div class="filter-row">

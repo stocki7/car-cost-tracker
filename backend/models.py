@@ -8,6 +8,7 @@ class Vehicle(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     description = Column(String(255))
+    sort_order = Column(Integer, nullable=False, default=0)
     trips = relationship("Trip", back_populates="vehicle")
     costs = relationship("Cost", back_populates="vehicle")
 
@@ -16,6 +17,7 @@ class Family(Base):
     __tablename__ = "families"
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
     trips = relationship("Trip", back_populates="family")
 
 
@@ -54,6 +56,7 @@ class Driver(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
     family = relationship("Family")
 
 
@@ -61,6 +64,7 @@ class CostType(Base):
     __tablename__ = "cost_types"
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
+    sort_order = Column(Integer, nullable=False, default=0)
 
 
 class Settlement(Base):
@@ -78,6 +82,7 @@ class Location(Base):
     __tablename__ = "locations"
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False, unique=True)
+    sort_order = Column(Integer, nullable=False, default=0)
 
 
 class Setting(Base):

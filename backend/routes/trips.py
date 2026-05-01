@@ -24,6 +24,18 @@ class TripCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TripUpdate(BaseModel):
+    date: date
+    vehicle_id: int
+    family_id: int
+    driver_name: Optional[str] = None
+    start_location: Optional[str] = None
+    end_location: Optional[str] = None
+    km: float
+    round_trip: bool = False
+    notes: Optional[str] = None
+
+
 class TripOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -133,6 +145,18 @@ def list_trips(
     if month:
         q = q.filter(extract("month", Trip.date) == month)
     return [trip_to_out(t) for t in q.order_by(Trip.date.desc()).all()]
+
+
+@router.put("/{trip_id}", response_model=TripOut)
+def update_trip(trip_id: int, trip: TripUpdate, db: Session = Depends(get_db)):
+    db_trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not db_trip:
+        raise HTTPException(status_code=404, detail="Fahrt nicht gefunden")
+    for field, value in trip.model_dump().items():
+        setattr(db_trip, field, value)
+    db.commit()
+    db.refresh(db_trip)
+    return trip_to_out(db_trip)
 
 
 @router.delete("/{trip_id}")

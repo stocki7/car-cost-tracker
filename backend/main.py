@@ -36,6 +36,19 @@ def run_migrations():
             except Exception:
                 pass
 
+        for table in ["vehicles", "families", "cost_types", "drivers", "locations"]:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
+                conn.commit()
+            except Exception:
+                pass
+        for table in ["vehicles", "families", "cost_types", "drivers", "locations"]:
+            try:
+                conn.execute(text(f"UPDATE {table} SET sort_order = id WHERE sort_order = 0"))
+                conn.commit()
+            except Exception:
+                pass
+
         try:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS settlements_new (

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
@@ -63,14 +64,28 @@ def _get_or_404(db: Session, model, id: int, label: str):
 
 # ── Vehicles ──────────────────────────────────────────────────────────────────
 
+@router.post("/vehicles/move")
+def move_vehicle(vehicle_id: int, direction: str, db: Session = Depends(get_db)):
+    items = db.query(Vehicle).order_by(Vehicle.sort_order).all()
+    idx = next((i for i, x in enumerate(items) if x.id == vehicle_id), None)
+    if idx is None:
+        raise HTTPException(404, "Nicht gefunden")
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(items):
+        items[idx].sort_order, items[swap].sort_order = items[swap].sort_order, items[idx].sort_order
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/vehicles", response_model=list[VehicleOut])
 def list_vehicles(db: Session = Depends(get_db)):
-    return db.query(Vehicle).order_by(Vehicle.id).all()
+    return db.query(Vehicle).order_by(Vehicle.sort_order).all()
 
 
 @router.post("/vehicles", response_model=VehicleOut)
 def create_vehicle(body: VehicleBody, db: Session = Depends(get_db)):
-    v = Vehicle(name=body.name.strip(), description=body.description)
+    max_order = db.query(func.max(Vehicle.sort_order)).scalar() or 0
+    v = Vehicle(name=body.name.strip(), description=body.description, sort_order=max_order + 1)
     db.add(v)
     db.commit()
     db.refresh(v)
@@ -104,14 +119,28 @@ def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db)):
 
 # ── Families ──────────────────────────────────────────────────────────────────
 
+@router.post("/families/move")
+def move_family(family_id: int, direction: str, db: Session = Depends(get_db)):
+    items = db.query(Family).order_by(Family.sort_order).all()
+    idx = next((i for i, x in enumerate(items) if x.id == family_id), None)
+    if idx is None:
+        raise HTTPException(404, "Nicht gefunden")
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(items):
+        items[idx].sort_order, items[swap].sort_order = items[swap].sort_order, items[idx].sort_order
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/families", response_model=list[FamilyOut])
 def list_families(db: Session = Depends(get_db)):
-    return db.query(Family).order_by(Family.id).all()
+    return db.query(Family).order_by(Family.sort_order).all()
 
 
 @router.post("/families", response_model=FamilyOut)
 def create_family(body: NameBody, db: Session = Depends(get_db)):
-    f = Family(name=body.name.strip())
+    max_order = db.query(func.max(Family.sort_order)).scalar() or 0
+    f = Family(name=body.name.strip(), sort_order=max_order + 1)
     db.add(f)
     db.commit()
     db.refresh(f)
@@ -148,14 +177,28 @@ def _driver_out(d: Driver) -> DriverOut:
                      family_name=d.family.name if d.family else None)
 
 
+@router.post("/drivers/move")
+def move_driver(driver_id: int, direction: str, db: Session = Depends(get_db)):
+    items = db.query(Driver).order_by(Driver.sort_order).all()
+    idx = next((i for i, x in enumerate(items) if x.id == driver_id), None)
+    if idx is None:
+        raise HTTPException(404, "Nicht gefunden")
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(items):
+        items[idx].sort_order, items[swap].sort_order = items[swap].sort_order, items[idx].sort_order
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/drivers", response_model=list[DriverOut])
 def list_drivers(db: Session = Depends(get_db)):
-    return [_driver_out(d) for d in db.query(Driver).order_by(Driver.name).all()]
+    return [_driver_out(d) for d in db.query(Driver).order_by(Driver.sort_order).all()]
 
 
 @router.post("/drivers", response_model=DriverOut)
 def create_driver(body: DriverBody, db: Session = Depends(get_db)):
-    d = Driver(name=body.name.strip(), family_id=body.family_id)
+    max_order = db.query(func.max(Driver.sort_order)).scalar() or 0
+    d = Driver(name=body.name.strip(), family_id=body.family_id, sort_order=max_order + 1)
     db.add(d)
     db.commit()
     db.refresh(d)
@@ -182,9 +225,22 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db)):
 
 # ── Cost Types ────────────────────────────────────────────────────────────────
 
+@router.post("/cost-types/move")
+def move_cost_type(ct_id: int, direction: str, db: Session = Depends(get_db)):
+    items = db.query(CostType).order_by(CostType.sort_order).all()
+    idx = next((i for i, x in enumerate(items) if x.id == ct_id), None)
+    if idx is None:
+        raise HTTPException(404, "Nicht gefunden")
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(items):
+        items[idx].sort_order, items[swap].sort_order = items[swap].sort_order, items[idx].sort_order
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/cost-types", response_model=list[CostTypeOut])
 def list_cost_types(db: Session = Depends(get_db)):
-    return db.query(CostType).order_by(CostType.id).all()
+    return db.query(CostType).order_by(CostType.sort_order).all()
 
 
 @router.post("/cost-types", response_model=CostTypeOut)
@@ -192,7 +248,8 @@ def create_cost_type(body: NameBody, db: Session = Depends(get_db)):
     name = body.name.strip()
     if db.query(CostType).filter(CostType.name == name).first():
         raise HTTPException(status_code=400, detail="Kostenart existiert bereits")
-    ct = CostType(name=name)
+    max_order = db.query(func.max(CostType.sort_order)).scalar() or 0
+    ct = CostType(name=name, sort_order=max_order + 1)
     db.add(ct)
     db.commit()
     db.refresh(ct)
@@ -224,9 +281,22 @@ def delete_cost_type(ct_id: int, db: Session = Depends(get_db)):
 
 # ── Locations ─────────────────────────────────────────────────────────────────
 
+@router.post("/locations/move")
+def move_location(loc_id: int, direction: str, db: Session = Depends(get_db)):
+    items = db.query(Location).order_by(Location.sort_order).all()
+    idx = next((i for i, x in enumerate(items) if x.id == loc_id), None)
+    if idx is None:
+        raise HTTPException(404, "Nicht gefunden")
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(items):
+        items[idx].sort_order, items[swap].sort_order = items[swap].sort_order, items[idx].sort_order
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/locations")
 def list_locations(db: Session = Depends(get_db)):
-    return [loc.name for loc in db.query(Location).order_by(Location.name).all()]
+    return [{"id": loc.id, "name": loc.name} for loc in db.query(Location).order_by(Location.sort_order).all()]
 
 
 @router.post("/locations")
@@ -234,7 +304,8 @@ def create_location(body: NameBody, db: Session = Depends(get_db)):
     name = body.name.strip()
     if db.query(Location).filter(Location.name == name).first():
         raise HTTPException(status_code=400, detail="Ort existiert bereits")
-    db.add(Location(name=name))
+    max_order = db.query(func.max(Location.sort_order)).scalar() or 0
+    db.add(Location(name=name, sort_order=max_order + 1))
     db.commit()
     return {"ok": True}
 

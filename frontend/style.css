@@ -175,7 +175,6 @@ button:not(.btn-primary):not(.nav-btn):not(.settle-btn):not(.unsettle-btn):not(.
   .card .value { font-size: 1.5rem; }
 
   .dash-bottom { grid-template-columns: 1fr; }
-  .dash-bottom > div { max-width: calc(50% - 0.375rem); }
 
   .form-grid { grid-template-columns: 1fr; }
   .full-width { grid-column: 1; }

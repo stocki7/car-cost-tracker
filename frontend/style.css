@@ -69,7 +69,7 @@ h3 { font-size: 1rem; margin-bottom: .75rem; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
 .full-width { grid-column: 1 / -1; }
 label { display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; font-weight: 500; }
-input, select { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .75rem; font-size: .95rem; outline: none; transition: border-color .15s; width: 100%; background: var(--bg); }
+input, select { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .75rem; font-size: .95rem; outline: none; transition: border-color .15s; width: 100%; background: var(--surface); }
 input:focus, select:focus { border-color: var(--primary); }
 .km-row { display: flex; gap: .5rem; }
 .km-row input { flex: 1; }

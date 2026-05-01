@@ -174,7 +174,7 @@ button:not(.btn-primary):not(.nav-btn):not(.settle-btn):not(.unsettle-btn):not(.
   .card { padding: 1rem; }
   .card .value { font-size: 1.5rem; }
 
-  .dash-bottom { grid-template-columns: 1fr 1fr; }
+  .dash-bottom { grid-template-columns: 1fr; }
 
   .form-grid { grid-template-columns: 1fr; }
   .full-width { grid-column: 1; }

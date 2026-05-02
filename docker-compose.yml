@@ -6,6 +6,6 @@ services:
       - ./data:/data
       - ./frontend:/frontend:ro
     ports:
-      - "8080:8000"
+      - "8081:8000"
     environment:
       - TZ=Europe/Vienna
